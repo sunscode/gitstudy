@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.safestring import mark_safe
 
 
 # Create your models here.
@@ -44,8 +45,13 @@ class Article(models.Model):
     category = models.ForeignKey('Category', on_delete=models.DO_NOTHING, blank=True, null=True, verbose_name='分类')
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    delete_status = models.BooleanField(default=False, verbose_name='删除状态')
+    publish_status = models.BooleanField(default=False, choices=((False, '未发布'), (True, '发布')), verbose_name='发布状态')
     detail = models.OneToOneField('ArticleDetail', on_delete=models.DO_NOTHING)
+
+    def show_publisher_status(self):
+        color_dict = {True: 'green', False: '#c35353'}
+        return mark_safe('<span style="background: {}; color: white;padding: 3px">{}</span>'.format(
+            color_dict[self.publish_status], self.get_publish_status_display()))
 
 
 class ArticleDetail(models.Model):

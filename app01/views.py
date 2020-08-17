@@ -1,6 +1,8 @@
 from django.shortcuts import render, redirect
 from app01 import models
 from django.core.exceptions import ValidationError
+import hashlib
+from app01.forms import RegForm, ArticleForm
 
 
 # Create your views here.
@@ -10,7 +12,7 @@ def login(request):
         password = request.POST.get('password')
         md5 = hashlib.md5()
         md5.update(password.encode('utf-8'))
-        user_obj = models.User.objects.filter(username=username, password=md5.hexdigest(), is_active=True).first()
+        user_obj = models.User.objects.filter(username=username, password=md5.hexdigest(), is_active=False).first()
         if user_obj:
             # 登录成功
             # 保存登录状态 用户名
@@ -28,67 +30,6 @@ def login(request):
 def logout(request):
     request.session.delete()
     return redirect('index')
-
-
-from django import forms
-import hashlib
-
-
-class RegForm(forms.ModelForm):
-    # username = forms.CharField()
-    password = forms.CharField(error_messages={'required': '这是必填项'},
-                               widget=forms.PasswordInput(attrs={'placeholder': '密码', 'type': 'password'}), label='密码',
-                               min_length=6)
-    re_pwd = forms.CharField(widget=forms.PasswordInput(attrs={'placeholder': '确认密码', 'type': 'password'}),
-                             label='确认密码', min_length=6)
-
-    class Meta:  # Meta只针对默认生成的字段是有效的  而对于自己手动生成的字段无效 如在下面的error_message写下password，是无法生效的
-        model = models.User  # 注意 这里是model 而不是models
-        fields = '__all__'  # 这里意思就是指定所有的字段
-        exclude = ['last_time']  # 这个一般和__all__一起用，表示除了哪些是不用填写进去的
-        # fields = ['username', 'password']  # 这里指定了是哪几个  到时候就会对应的生成哪几个
-        widgets = {
-            'password': forms.PasswordInput,
-            'username': forms.TextInput(attrs={'placeholder': '用户名', 'autocomplete': 'off'}),  # autocomplete的作用就是自动填充内容
-            'position': forms.TextInput(attrs={'placeholder': '职位'}),
-            # 'company': forms.Select(attrs={'placeholder': '公司'}),
-            'phone': forms.TextInput(attrs={'placeholder': '手机号'}),
-        }
-        error_messages = {
-            'username': {
-                'required': '必填项',
-            },
-        }
-
-    def clean_phone(self):  # 加上局部钩子
-        import re
-        phone = self.cleaned_data.get('phone')
-        if re.match(r'^1[3-9]\d{9}$', phone):
-            return phone
-        raise ValidationError('手机号格式不正确')
-
-    def clean(self):  # 加上全局钩子
-        self._validate_unique = True  # 加上 数据库要去校验唯一  就不会在数据库层面来报错了
-        password = self.cleaned_data.get('password', '')  # 这里给个空字符串为了防止不输入 两个都是null 出问题 用空字符串和null就会不一样
-        re_pwd = self.cleaned_data.get('re_pwd')
-
-        if password == re_pwd:
-            md5 = hashlib.md5()
-            md5.update(password.encode('utf-8'))
-            # print(md5.hexdigest)
-            self.cleaned_data['password'] = md5.hexdigest()
-            return self.cleaned_data
-        self.add_error('re_pwd', '两次密码不一致')
-        return ValidationError('两次密码不一致')
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # 自定义的操作
-        field = self.fields['company']
-
-        choices = field.choices
-        choices[0] = ('', '选择公司')
-        field.choices = choices
 
 
 def register(request):
@@ -122,6 +63,41 @@ def backend(request):
     return render(request, 'dashboard.html')
 
 
+# 展示文章列表
 def article_list(request):
     all_article = models.Article.objects.all()
     return render(request, 'article_list.html', {'all_article': all_article})
+
+
+# 新增文章
+def article_add(request):
+    form_obj = ArticleForm()
+    if request.method == 'POST':
+        form_obj = ArticleForm(request.POST)
+        if form_obj.is_valid():
+            # form_obj.save()  # 这里不能用save的原因是因为用了exclude除去了detail，所以直接save的话，detail的信息是无法保存进去的
+            # 插入文章详情
+            detail = request.POST.get('detail')
+            detail_obj = models.ArticleDetail.objects.create(content=detail)
+
+            # 插入文章那张表，这时候文章表少一个detail_id，所以要单独给赋值
+            form_obj.instance.detail_id = detail_obj.pk
+            form_obj.instance.save()
+
+            return redirect('article_list')
+
+    return render(request, 'article_add.html', {'form_obj': form_obj})
+
+
+# 编辑文章
+def article_edit(request, pk):
+    obj = models.Article.objects.filter(pk=pk).first()  # 查对象
+    form_obj = ArticleForm(instance=obj)
+
+    if request.method == 'POST':
+        form_obj = ArticleForm(request.POST, instance=obj)
+        if form_obj.is_valid():
+            form_obj.instance.detail.content = request.POST.get('detail')
+            form_obj.save()
+
+    return render(request, 'article_edit.html', {'form_obj': form_obj, 'obj': obj})

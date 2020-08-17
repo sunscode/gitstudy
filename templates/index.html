@@ -19,6 +19,7 @@
 
     <!-- Custom styles for this template -->
     <link href="blog.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'plugins/font-awesome-4.7.0/css/font-awesome.min.css' %}">
 
 </head>
 
@@ -40,7 +41,8 @@
 
 
             {% for article in all_article %}
-                <div class="blog-post">
+{#                i 标签来添加图标#}
+                <div class="blog-post"> <i class="fa fa-ioxhost fa-spin"></i>
                     <h2 class="blog-post-title"><a href="{% url 'article' article.pk %}">{{ article.title }}</a></h2>
                     {#                    <p class="blog-post-meta">{{ article.create_time|date:'Y-m-d H:i:s' }} by {{ article.author.username }}</p>#}
                     <p class="blog-post-meta">{{ article.create_time }} by {{ article.author.username }}</p>
